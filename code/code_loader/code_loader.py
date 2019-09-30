@@ -5,11 +5,10 @@ from glob import glob
 from subprocess import Popen, PIPE
 from code_loader.printer import CodeLoaderPrinter
 from code_loader.rest_api import CodeLoaderRESTAPI
-# TODO: re-enable
-# from dt_class_utils import DTProcess
+from dt_class_utils import DTProcess
 
 # constants
-LOADER_DATA_DIR = "/Users/afdaniele/_data_loader_"
+LOADER_DATA_DIR = "/data/loader"
 
 STATUS_TEMPLATE = """
 Current Status:
@@ -28,7 +27,7 @@ Current Status:
 """
 
 
-class CodeLoader(object):
+class CodeLoader(DTProcess):
 
   def __init__(self):
     self.images_to_load_dir = os.path.join(LOADER_DATA_DIR, 'images_to_load')
@@ -128,8 +127,7 @@ class CodeLoader(object):
     self._set_total(1, len(self.images_to_load_tar))
     self._set_status(1, 'Loading uncrompressed images (.tar)')
     for archive in self.images_to_load_tar:
-      # TODO: re-enable
-      # self._docker_load_archive(archive)
+      self._docker_load_archive(archive)
       remove_file(archive)
       self._tick(1)
       self._tick(0)
@@ -137,8 +135,7 @@ class CodeLoader(object):
     self._set_total(1, len(self.images_to_load_tar_gz))
     self._set_status(1, 'Loading crompressed images (.tar.gz)')
     for archive in self.images_to_load_tar_gz:
-      # TODO: re-enable
-      # self._docker_load_archive(archive)
+      self._docker_load_archive(archive)
       remove_file(archive)
       self._tick(1)
       self._tick(0)
@@ -153,7 +150,6 @@ class CodeLoader(object):
         self._tick(2)
         self._tick(0)
       self._docker_run_stack(stack, level=2)
-      remove_file(stack)
       self._tick(1)
     # load stacks (to load)
     self._set_total(1, len(self.stacks_to_load_yaml))
@@ -210,7 +206,7 @@ class CodeLoader(object):
     docker_load_process = Popen(['docker', 'load'], stdin=PIPE, stdout=PIPE)
     with open(archive_file, 'rb') as fin:
       data = fin.read(buffer)
-      while data != b"":
+      while data != b"" and not self.is_shutdown():
         # send data to docker load
         docker_load_process.stdin.write(data)
         # compute progress
