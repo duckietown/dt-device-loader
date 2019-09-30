@@ -1,6 +1,7 @@
 import sys, os, io
 import math
 import yaml
+import time
 from glob import glob
 from subprocess import Popen, PIPE
 from code_loader.printer import CodeLoaderPrinter
@@ -9,6 +10,8 @@ from dt_class_utils import DTProcess
 
 # constants
 LOADER_DATA_DIR = "/data/loader"
+RECHECK_PERIOD_SEC = 60
+RECHECK_PERIOD_ON_ERROR_SEC = 10
 
 STATUS_TEMPLATE = """
 Current Status:
@@ -30,6 +33,7 @@ Current Status:
 class CodeLoader(DTProcess):
 
     def __init__(self):
+        DTProcess.__init__(self)
         self.images_to_load_dir = os.path.join(LOADER_DATA_DIR, 'images_to_load')
         self.stacks_to_load_dir = os.path.join(LOADER_DATA_DIR, 'stacks_to_load')
         self.stacks_to_run_dir = os.path.join(LOADER_DATA_DIR, 'stacks_to_run')
@@ -53,18 +57,28 @@ class CodeLoader(DTProcess):
         return self.busy
 
     def start(self):
+        # load configuration
         self._load_configuration()
+        # start status readers
         if self.printer_enabled:
             self.printer.start()
         if self.rest_api_enabled:
             self.rest_api.start()
-        try:
-            self._run()
-        except:
-            e = sys.exc_info()[0]
-            for lvl in range(self.max_level):
-                self._set_action(lvl, 'ERROR: %s' % e)
-                self.error = True
+        # try forever
+        while not self.is_shutdown():
+            recheck_period = RECHECK_PERIOD_SEC
+            try:
+                self._load_configuration()
+                self._run()
+            except:
+                e = sys.exc_info()[0]
+                for lvl in range(self.max_level):
+                    self._set_action(lvl, 'ERROR: %s' % e)
+                    self.error = True
+                recheck_period = RECHECK_PERIOD_ON_ERROR_SEC
+            finally:
+                time.sleep(recheck_period)
+        # stop status readers
         self.printer.stop()
         self.rest_api.stop()
 
