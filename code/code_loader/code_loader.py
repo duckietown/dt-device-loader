@@ -2,8 +2,9 @@ import sys, os, io
 import math
 import yaml
 from glob import glob
-from subprocess import Popen, PIPE, check_call
+from subprocess import Popen, PIPE
 from code_loader.printer import CodeLoaderPrinter
+from code_loader.rest_api import CodeLoaderRESTAPI
 # TODO: re-enable
 # from dt_class_utils import DTProcess
 
@@ -41,16 +42,23 @@ class CodeLoader(object):
     self.total = [1] * self.max_level
     self.tick = [0] * self.max_level
     self.action = [None] * self.max_level
+    self.output = [None] * self.max_level
     self.busy = True
     self.error = False
     self.printer = CodeLoaderPrinter(self)
+    self.rest_api = CodeLoaderRESTAPI(self)
+    self.printer_enabled = False
+    self.rest_api_enabled = True
 
   def is_busy(self):
     return self.busy
 
   def start(self):
     self._load_configuration()
-    self.printer.start()
+    if self.printer_enabled:
+      self.printer.start()
+    if self.rest_api_enabled:
+      self.rest_api.start()
     try:
       self._run()
     except:
@@ -59,6 +67,7 @@ class CodeLoader(object):
         self._set_action(lvl, 'ERROR: %s' % e)
         self.error = True
     self.printer.stop()
+    self.rest_api.stop()
 
   def get_status(self):
     progress = self._get_progress()
@@ -68,10 +77,11 @@ class CodeLoader(object):
         lvl: {
           'progress': progress[lvl],
           'steps': {
-            'current': self.tick[lvl]+1,
+            'current': self.tick[lvl],
             'total': self.total[lvl]
           },
-          'action': self.action[lvl]
+          'action': self.action[lvl],
+          'output': self.output[lvl]
         } for lvl in range(self.max_level)
       }
     }
@@ -163,6 +173,7 @@ class CodeLoader(object):
   def _set_status(self, level, action, tick=0):
     self._set_tick(level, tick)
     self._set_action(level, action)
+    self.output[level] = None
 
   def _tick(self, level):
     self._set_tick(level, self.tick[level]+1)
@@ -207,7 +218,8 @@ class CodeLoader(object):
         self._set_tick(level, bytes_transferred)
         # read more bytes
         data = fin.read(buffer)
-    out, err = docker_load_process.communicate()
+    out, _ = docker_load_process.communicate()
+    self.output[level] = out
 
   def _docker_pull_image(self, image, level=3):
     self._set_action(level, 'Pulling image: %s' % image)
@@ -215,8 +227,10 @@ class CodeLoader(object):
     self._set_total(level, 1)
     self._set_tick(level, 0)
     layers = set()
+    self.output[level] = ''
     for line in io.TextIOWrapper(docker_pull_process.stdout, encoding="utf-8"):
       line = line.strip()
+      self.output[level] += '\n' + line
       parts = line.split(':')
       if len(parts) != 2:
         continue
@@ -231,10 +245,12 @@ class CodeLoader(object):
         self._tick(level)
 
   def _docker_run_stack(self, stack_file, level):
-    stack_name = os.path.basename(stack_file)
+    stack_name = os.path.basename(stack_file).replace('.yaml', '').replace('.yml', '')
     self._set_status(level, 'Running stack: %s' % stack_name)
     cmd = ['docker-compose', '-p', stack_name, '--file', stack_file, 'up', '-d']
-    check_call(cmd)
+    docker_compose_up_process = Popen(cmd)
+    out, err = docker_compose_up_process.communicate()
+    self.output[level] = err
     self._tick(level)
 
   def _images_in_stack(self, stack_file):
