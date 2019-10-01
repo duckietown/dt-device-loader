@@ -12,7 +12,7 @@ class CodeLoaderPrinter(Thread):
         self.frequency = 1.0
 
     def run(self):
-        while not self.code_loader.is_shutdown():
+        while not self.code_loader.is_shutdown:
             code_loader_status = self.code_loader.get_status()
             print(json.dumps(code_loader_status, indent=4, sort_keys=True))
             if self.is_shutdown:

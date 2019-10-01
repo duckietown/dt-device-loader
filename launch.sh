@@ -13,7 +13,7 @@ dt_launchfile_init
 # NOTE: Use `dt_exec COMMAND` to run the main process (blocking process)
 
 # launching app
-dt_exec python3 -m "code_loader.__init__"
+dt_exec python3 -m "device_loader.launch"
 
 
 # ----------------------------------------------------------------------------

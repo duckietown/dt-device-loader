@@ -12,6 +12,8 @@ from dt_class_utils import DTProcess
 LOADER_DATA_DIR = "/data/loader"
 RECHECK_PERIOD_SEC = 60
 RECHECK_PERIOD_ON_ERROR_SEC = 10
+ENABLE_PRINTER = True
+ENABLE_REST_API = True
 
 STATUS_TEMPLATE = """
 Current Status:
@@ -50,8 +52,6 @@ class CodeLoader(DTProcess):
         self.error = False
         self.printer = CodeLoaderPrinter(self)
         self.rest_api = CodeLoaderRESTAPI(self)
-        self.printer_enabled = False
-        self.rest_api_enabled = True
 
     def is_busy(self):
         return self.busy
@@ -60,18 +60,18 @@ class CodeLoader(DTProcess):
         # load configuration
         self._load_configuration()
         # start status readers
-        if self.printer_enabled:
+        if ENABLE_PRINTER:
             self.printer.start()
-        if self.rest_api_enabled:
+        if ENABLE_REST_API:
             self.rest_api.start()
         # try forever
-        while not self.is_shutdown():
+        while not self.is_shutdown:
             recheck_period = RECHECK_PERIOD_SEC
             try:
                 self._load_configuration()
                 self._run()
             except:
-                e = sys.exc_info()[0]
+                e = '\n'.join(sys.exc_info())
                 for lvl in range(self.max_level):
                     self._set_action(lvl, 'ERROR: %s' % e)
                     self.error = True
@@ -195,7 +195,7 @@ class CodeLoader(DTProcess):
         self.tick[level] = tick
 
     def _set_action(self, action_lvl, action):
-        for lvl in range(action_lvl+1, 2, 1):
+        for lvl in range(action_lvl+1, self.max_level, 1):
             self.action[lvl] = None
             self.tick[lvl] = 0
         self.action[action_lvl] = action
@@ -205,9 +205,9 @@ class CodeLoader(DTProcess):
         for lvl in range(self.max_level-1, -1, -1):
             progress_base = percentage(self.tick[lvl], self.total[lvl])
             substep_progress = 0
-            if (lvl+1) < self.max_level:
+            if (lvl+1) < self.max_level and self.total[lvl] > 0:
                 substep_progress = progress[lvl+1]
-            substep_progress = int(math.floor(substep_progress * (1.0 / float(self.total[lvl]))))
+                substep_progress = int(math.floor(substep_progress * (1.0 / float(self.total[lvl]))))
             progress[lvl] = progress_base + substep_progress
         return progress
 
@@ -220,7 +220,7 @@ class CodeLoader(DTProcess):
         docker_load_process = Popen(['docker', 'load'], stdin=PIPE, stdout=PIPE)
         with open(archive_file, 'rb') as fin:
             data = fin.read(buffer)
-            while data != b"" and not self.is_shutdown():
+            while data != b"" and not self.is_shutdown:
                 # send data to docker load
                 docker_load_process.stdin.write(data)
                 # compute progress
@@ -275,6 +275,9 @@ def basenames(lst):
     return [os.path.basename(fp) for fp in lst]
 
 def percentage(partial, total, rtype=int):
+    # avoid division by zero
+    if total == 0:
+        total = 1
     return rtype((partial / total) * 100.0)
 
 def list_files(lst, bullet='-', indent=1):
@@ -285,4 +288,4 @@ def list_files(lst, bullet='-', indent=1):
 
 def remove_file(filepath):
     print('Now removing: '+filepath)
-    return os.remove(filepath)
+    # return os.remove(filepath)
