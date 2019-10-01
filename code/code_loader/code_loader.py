@@ -278,6 +278,7 @@ def percentage(partial, total, rtype=int):
     # avoid division by zero
     if total == 0:
         total = 1
+    partial = min(partial, total)
     return rtype((partial / total) * 100.0)
 
 def list_files(lst, bullet='-', indent=1):
