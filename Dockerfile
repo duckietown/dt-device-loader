@@ -56,5 +56,8 @@ CMD ["bash", "-c", "${LAUNCHFILE}"]
 # <== Do not change this code
 # <==================================================
 
+# copy docker-compose binary
+COPY assets/bin/docker-compose /usr/local/bin/docker-compose
+
 # maintainer
 LABEL maintainer="Andrea F. Daniele (afdaniele@ttic.edu)"

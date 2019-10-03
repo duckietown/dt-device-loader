@@ -29,6 +29,10 @@ Current Status:
 
   Stacks to run:
     {stacks_run}
+
+  Configuration:
+    - Exclude run: {exclude_run}
+    - Delete: {do_delete}
 """
 
 
@@ -52,6 +56,10 @@ class CodeLoader(DTProcess):
         self.error = False
         self.printer = CodeLoaderPrinter(self)
         self.rest_api = CodeLoaderRESTAPI(self)
+        self.exclude_run = \
+            os.environ['EXCLUDE_RUN'].lower().split(',') if 'EXCLUDE_RUN' in os.environ \
+            else []
+        self.do_delete = not ('NO_DELETE' in os.environ and os.environ['NO_DELETE'] == '1')
 
     def is_busy(self):
         return self.busy
@@ -112,7 +120,9 @@ class CodeLoader(DTProcess):
             'images_load_tar' : list_files(basenames(self.images_to_load_tar)),
             'images_load_tar_gz' : list_files(basenames(self.images_to_load_tar_gz)),
             'stacks_load' : list_files(basenames(self.stacks_to_load_yaml)),
-            'stacks_run' : list_files(basenames(self.stacks_to_run_yaml))
+            'stacks_run' : list_files(basenames(self.stacks_to_run_yaml)),
+            'exclude_run' : self.exclude_run,
+            'do_delete' : self.do_delete
         }))
 
     def _run(self):
@@ -145,6 +155,7 @@ class CodeLoader(DTProcess):
             remove_file(archive)
             self._tick(1)
             self._tick(0)
+
         # load images (compressed)
         self._set_total(1, len(self.images_to_load_tar_gz))
         self._set_status(1, 'Loading crompressed images (.tar.gz)')
@@ -153,30 +164,37 @@ class CodeLoader(DTProcess):
             remove_file(archive)
             self._tick(1)
             self._tick(0)
+
         # load stacks (to run)
         self._set_total(1, len(self.stacks_to_run_yaml))
         self._set_status(1, 'Loading stacks we run at boot')
         for stack in self.stacks_to_run_yaml:
+            stack_name = os.path.basename(stack).replace('.yaml', '').replace('.yml', '')
             self._set_total(2, 1+len(stacks_to_run[stack]))
-            self._set_status(2, 'Loading stack: %s' % os.path.basename(stack))
+            self._set_status(2, 'Loading stack: %s' % stack_name)
             for image in stacks_to_run[stack]:
                 self._docker_pull_image(image)
                 self._tick(2)
                 self._tick(0)
-            self._docker_run_stack(stack, level=2)
+            if stack_name.lower() not in self.exclude_run:
+                self._docker_run_stack(stack, level=3)
             self._tick(1)
+
         # load stacks (to load)
         self._set_total(1, len(self.stacks_to_load_yaml))
         self._set_status(1, 'Loading other stacks')
         for stack in self.stacks_to_load_yaml:
+            stack_name = os.path.basename(stack).replace('.yaml', '').replace('.yml', '')
             self._set_total(2, len(stacks_to_load[stack]))
-            self._set_status(2, 'Loading stack: %s' % os.path.basename(stack))
+            self._set_status(2, 'Loading stack: %s' % stack_name)
             for image in stacks_to_load[stack]:
                 self._docker_pull_image(image)
                 self._tick(2)
                 self._tick(0)
-            remove_file(stack)
+            if self.do_delete:
+                remove_file(stack)
             self._tick(1)
+
         # <= LOAD IMAGES
         self.busy = False
 
@@ -257,6 +275,7 @@ class CodeLoader(DTProcess):
     def _docker_run_stack(self, stack_file, level):
         stack_name = os.path.basename(stack_file).replace('.yaml', '').replace('.yml', '')
         self._set_status(level, 'Running stack: %s' % stack_name)
+        self._set_total(level, 1)
         cmd = ['docker-compose', '-p', stack_name, '--file', stack_file, 'up', '-d']
         docker_compose_up_process = Popen(cmd)
         out, err = docker_compose_up_process.communicate()
@@ -265,7 +284,7 @@ class CodeLoader(DTProcess):
 
     def _images_in_stack(self, stack_file):
         images = []
-        yaml_content = yaml.load(open(stack_file).read(), Loader=yaml.FullLoader)
+        yaml_content = yaml.load(open(stack_file).read())
         for service_config in yaml_content['services'].values():
             images.append(service_config['image'])
         return list(set(images))
@@ -289,4 +308,4 @@ def list_files(lst, bullet='-', indent=1):
 
 def remove_file(filepath):
     print('Now removing: '+filepath)
-    # return os.remove(filepath)
+    return os.remove(filepath)

@@ -1,3 +1,2 @@
 # LIST YOUR APT PACKAGES HERE
-wget
-docker-compose
+python3-yaml
