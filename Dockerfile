@@ -57,7 +57,8 @@ CMD ["bash", "-c", "${LAUNCHFILE}"]
 # <==================================================
 
 # copy docker-compose binary
-COPY assets/bin/docker-compose /usr/local/bin/docker-compose
+ARG ARCH
+COPY assets/bin/${ARCH}/docker-compose /usr/local/bin/docker-compose
 
 # maintainer
 LABEL maintainer="Andrea F. Daniele (afdaniele@ttic.edu)"
