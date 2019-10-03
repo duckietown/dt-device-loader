@@ -78,6 +78,7 @@ class CodeLoader(DTProcess):
             try:
                 self._load_configuration()
                 self._run()
+                self.shutdown()
             except:
                 e = '\n'.join(sys.exc_info())
                 for lvl in range(self.max_level):
@@ -271,7 +272,7 @@ class CodeLoader(DTProcess):
             if action in ['Waiting', 'Pulling fs layer']:
                 layers.add(layerID)
                 self._set_total(level, len(layers))
-            elif action == 'Download complete':
+            elif action == 'Pull complete':
                 self._tick(level)
 
     def _docker_run_stack(self, stack_file, level):
