@@ -152,7 +152,8 @@ class CodeLoader(DTProcess):
         self._set_status(1, 'Loading uncrompressed images (.tar)')
         for archive in self.images_to_load_tar:
             self._docker_load_archive(archive)
-            remove_file(archive)
+            if self.do_delete:
+                remove_file(archive)
             self._tick(1)
             self._tick(0)
 
@@ -161,7 +162,8 @@ class CodeLoader(DTProcess):
         self._set_status(1, 'Loading crompressed images (.tar.gz)')
         for archive in self.images_to_load_tar_gz:
             self._docker_load_archive(archive)
-            remove_file(archive)
+            if self.do_delete:
+                remove_file(archive)
             self._tick(1)
             self._tick(0)
 
