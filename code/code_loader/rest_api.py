@@ -11,15 +11,19 @@ class CodeLoaderRESTAPI(Thread):
     def __init__(self, code_loader):
         Thread.__init__(self)
         self.code_loader = code_loader
-        self.is_shutdown = False
+        self.httpd = None
 
     def run(self):
         server_address = ('', PORT)
-        httpd = CodeLoaderHTTPServer(server_address, self.code_loader)
-        httpd.serve_forever()
+        self.httpd = CodeLoaderHTTPServer(server_address, self.code_loader)
+        self.httpd.serve_forever()
 
     def stop(self):
-        self.is_shutdown = True
+        try:
+            self.httpd.shutdown()
+            self.httpd.socket.shutdown()
+        except:
+            pass
 
 
 class CodeLoaderHTTPRequestHandler(BaseHTTPRequestHandler):

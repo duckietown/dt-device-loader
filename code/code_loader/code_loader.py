@@ -10,9 +10,8 @@ from dt_class_utils import DTProcess
 
 # constants
 LOADER_DATA_DIR = "/data/loader"
-RECHECK_PERIOD_SEC = 60
 RECHECK_PERIOD_ON_ERROR_SEC = 10
-ENABLE_PRINTER = True
+ENABLE_PRINTER = False
 ENABLE_REST_API = True
 
 STATUS_TEMPLATE = """
@@ -65,28 +64,26 @@ class CodeLoader(DTProcess):
         return self.busy
 
     def start(self):
-        # load configuration
-        self._load_configuration()
         # start status readers
         if ENABLE_PRINTER:
             self.printer.start()
+            self.register_shutdown_callback(self.printer.stop)
         if ENABLE_REST_API:
             self.rest_api.start()
-        # try forever
+            self.register_shutdown_callback(self.rest_api.stop)
+        # load
         while not self.is_shutdown:
-            recheck_period = RECHECK_PERIOD_SEC
             try:
                 self._load_configuration()
                 self._run()
                 self.shutdown()
+                break;
             except:
                 e = '\n'.join(sys.exc_info())
                 for lvl in range(self.max_level):
                     self._set_action(lvl, 'ERROR: %s' % e)
                     self.error = True
-                recheck_period = RECHECK_PERIOD_ON_ERROR_SEC
-            finally:
-                time.sleep(recheck_period)
+                time.sleep(RECHECK_PERIOD_ON_ERROR_SEC)
         # stop status readers
         self.printer.stop()
         self.rest_api.stop()
