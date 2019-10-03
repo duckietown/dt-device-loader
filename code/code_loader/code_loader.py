@@ -10,7 +10,9 @@ from dt_class_utils import DTProcess
 
 # constants
 LOADER_DATA_DIR = "/data/loader"
+BOOT_LOG_FILE = "/data/boot-log.txt"
 RECHECK_PERIOD_ON_ERROR_SEC = 10
+RECHECK_PERIOD_SEC = 60
 ENABLE_PRINTER = False
 ENABLE_REST_API = True
 
@@ -72,18 +74,19 @@ class CodeLoader(DTProcess):
             self.rest_api.start()
             self.register_shutdown_callback(self.rest_api.stop)
         # load
+        recheck_period = RECHECK_PERIOD_SEC
         while not self.is_shutdown:
             try:
                 self._load_configuration()
                 self._run()
-                self.shutdown()
-                break;
             except:
                 e = '\n'.join(sys.exc_info())
                 for lvl in range(self.max_level):
                     self._set_action(lvl, 'ERROR: %s' % e)
                     self.error = True
-                time.sleep(RECHECK_PERIOD_ON_ERROR_SEC)
+                recheck_period = RECHECK_PERIOD_ON_ERROR_SEC
+            finally:
+                time.sleep(recheck_period)
         # stop status readers
         self.printer.stop()
         self.rest_api.stop()
@@ -154,6 +157,7 @@ class CodeLoader(DTProcess):
                 remove_file(archive)
             self._tick(1)
             self._tick(0)
+            self._boot_log('loading', "Archive loaded: {}".format(os.path.basename(archive)))
 
         # load images (compressed)
         self._set_total(1, len(self.images_to_load_tar_gz))
@@ -164,6 +168,7 @@ class CodeLoader(DTProcess):
                 remove_file(archive)
             self._tick(1)
             self._tick(0)
+            self._boot_log('loading', "Archive loaded: {}".format(os.path.basename(archive)))
 
         # load stacks (to run)
         self._set_total(1, len(self.stacks_to_run_yaml))
@@ -176,8 +181,11 @@ class CodeLoader(DTProcess):
                 self._docker_pull_image(image)
                 self._tick(2)
                 self._tick(0)
+                self._boot_log('loading', "Image loaded: {}".format(image))
             if stack_name.lower() not in self.exclude_run:
                 self._docker_run_stack(stack, level=3)
+                self._boot_log('loading', "Stack run: {}".format(stack_name))
+            self._boot_log('loading', "Stack completed: {}".format(stack_name))
             self._tick(1)
 
         # load stacks (to load)
@@ -191,12 +199,22 @@ class CodeLoader(DTProcess):
                 self._docker_pull_image(image)
                 self._tick(2)
                 self._tick(0)
+                self._boot_log('loading', "Image loaded: {}".format(image))
             if self.do_delete:
                 remove_file(stack)
+            self._boot_log('loading', "Stack completed: {}".format(stack_name))
             self._tick(1)
+        self._boot_log('loading', "All stacks up")
 
         # <= LOAD IMAGES
         self.busy = False
+
+    def _boot_log(self, phase, message):
+        try:
+            with open(self.BOOT_LOG_FILE, "at") as fin:
+                fin.write(json.dumps({'phase': phase, 'msg': message}))
+        except:
+            pass
 
     def _set_status(self, level, action, tick=0):
         self._set_tick(level, tick)
