@@ -2,6 +2,7 @@ import sys, os, io
 import math
 import yaml
 import time
+import psutil
 from glob import glob
 from subprocess import Popen, PIPE
 from code_loader.printer import CodeLoaderPrinter
@@ -11,6 +12,7 @@ from dt_class_utils import DTProcess
 # constants
 LOADER_DATA_DIR = "/data/loader"
 BOOT_LOG_FILE = "/data/boot-log.txt"
+CPU_TEMPERATURE_FILE = "/sys/class/thermal/thermal_zone0/temp"
 RECHECK_PERIOD_ON_ERROR_SEC = 10
 RECHECK_PERIOD_SEC = 60
 ENABLE_PRINTER = False
@@ -92,6 +94,11 @@ class CodeLoader(DTProcess):
         self.rest_api.stop()
 
     def get_status(self):
+        # get disk info
+        disk = psutil.disk_usage(LOADER_DATA_DIR)
+        # get temperature info
+        cpu_temp = cpu_temperature()
+        # get progress info
         progress = self._get_progress()
         return {
             'status': 'error' if self.error else ('busy' if self.is_busy() else 'ready'),
@@ -105,6 +112,15 @@ class CodeLoader(DTProcess):
                     'action': self.action[lvl],
                     'output': self.output[lvl]
                 } for lvl in range(self.max_level)
+            },
+            'disk': {
+                'total': disk.total,
+                'free': disk.free,
+                'usage': int(disk.percent)
+            },
+            'cpu': {
+                'usage': int(psutil.cpu_percent()),
+                'temperature': cpu_temp
             }
         }
 
@@ -323,6 +339,15 @@ def list_files(lst, bullet='-', indent=1):
         pre = '\t' * indent + bullet + ' '
         return pre + ('\n'+pre).join(lst)
     return '\t' * indent + '(none)'
+
+def cpu_temperature():
+    temp = 'ND'
+    try:
+        with open(CPU_TEMPERATURE_FILE, 'rt') as fin:
+            temp = fin.read()
+    except:
+        pass
+    return temp
 
 def remove_file(filepath):
     print('Now removing: '+filepath)
