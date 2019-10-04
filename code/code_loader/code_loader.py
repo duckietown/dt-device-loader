@@ -309,8 +309,8 @@ class CodeLoader(DTProcess):
                 continue
             if action in ['Waiting', 'Pulling fs layer']:
                 layers.add(layerID)
-                self._set_total(level, len(layers))
-            elif action == 'Pull complete':
+                self._set_total(level, 2*len(layers))
+            elif action in ['Download complete', 'Pull complete']:
                 self._tick(level)
 
     def _docker_run_stack(self, stack_file, level):
