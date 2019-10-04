@@ -344,7 +344,7 @@ def cpu_temperature():
     temp = 'ND'
     try:
         with open(CPU_TEMPERATURE_FILE, 'rt') as fin:
-            temp = fin.read()
+            temp = int(float(fin.read()) / 1000.0)
     except:
         pass
     return temp
