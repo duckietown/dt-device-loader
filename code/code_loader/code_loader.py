@@ -9,6 +9,7 @@ from subprocess import Popen, PIPE, check_output
 from code_loader.printer import CodeLoaderPrinter
 from code_loader.rest_api import CodeLoaderRESTAPI
 from dt_class_utils import DTProcess
+from dt_avahi_utils import disable_service
 
 # constants
 LOADER_DATA_DIR = "/data/loader"
@@ -82,6 +83,7 @@ class CodeLoader(DTProcess):
             try:
                 self._load_configuration()
                 self._run()
+                disable_service('dt.device-init')
             except:
                 e = '\n'.join(sys.exc_info())
                 for lvl in range(self.max_level):
