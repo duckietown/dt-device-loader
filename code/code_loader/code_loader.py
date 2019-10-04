@@ -348,7 +348,7 @@ def list_files(lst, bullet='-', indent=1):
     return '\t' * indent + '(none)'
 
 def cpu_temperature():
-    temp = 'ND'
+    temp = 0
     try:
         with open(CPU_TEMPERATURE_FILE, 'rt') as fin:
             temp = int(float(fin.read()) / 1000.0)
