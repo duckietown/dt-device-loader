@@ -91,7 +91,10 @@ class CodeLoader(DTProcess):
                     self.error = True
                 recheck_period = RECHECK_PERIOD_ON_ERROR_SEC
             finally:
+                self.printer.stop()
                 time.sleep(recheck_period)
+                if ENABLE_PRINTER:
+                    self.printer.start()
         # stop status readers
         self.printer.stop()
         self.rest_api.stop()
