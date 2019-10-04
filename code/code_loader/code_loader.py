@@ -4,7 +4,7 @@ import yaml
 import time
 import psutil
 from glob import glob
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, check_output
 from code_loader.printer import CodeLoaderPrinter
 from code_loader.rest_api import CodeLoaderRESTAPI
 from dt_class_utils import DTProcess
@@ -194,10 +194,11 @@ class CodeLoader(DTProcess):
             self._set_total(2, 1+len(stacks_to_run[stack]))
             self._set_status(2, 'Loading stack: %s' % stack_name)
             for image in stacks_to_run[stack]:
-                self._docker_pull_image(image)
+                if not self._docker_image_exists(image):
+                    self._docker_pull_image(image)
+                    self._boot_log('loading', "Image loaded: {}".format(image))
                 self._tick(2)
                 self._tick(0)
-                self._boot_log('loading', "Image loaded: {}".format(image))
             if stack_name.lower() not in self.exclude_run:
                 self._docker_run_stack(stack, level=3)
                 self._boot_log('loading', "Stack run: {}".format(stack_name))
@@ -282,6 +283,12 @@ class CodeLoader(DTProcess):
                 data = fin.read(buffer)
         out, _ = docker_load_process.communicate()
         self.output[level] = out
+
+    def _docker_image_exists(self, image):
+        cmd = ["docker", "images", "--format", "{{.Repository}}:{{.Tag}}"]
+        images = check_output(cmd).decode('utf-8').split("\n")
+        images = set(map(lambda s: s.strip(), images))
+        return image in images
 
     def _docker_pull_image(self, image, level=3):
         self._set_action(level, 'Pulling image: %s' % image)
