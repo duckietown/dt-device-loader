@@ -1,5 +1,6 @@
 import sys, os, io
 import math
+import json
 import yaml
 import time
 import psutil
@@ -221,15 +222,16 @@ class CodeLoader(DTProcess):
                 remove_file(stack)
             self._boot_log('loading', "Stack completed: {}".format(stack_name))
             self._tick(1)
-        self._boot_log('loading', "All stacks up")
+        self._boot_log('done', "All stacks up")
 
         # <= LOAD IMAGES
         self.busy = False
 
     def _boot_log(self, phase, message):
         try:
-            with open(self.BOOT_LOG_FILE, "at") as fin:
-                fin.write(json.dumps({'phase': phase, 'msg': message}))
+            with open(BOOT_LOG_FILE, "at") as fout:
+                fout.write(json.dumps({'phase': phase, 'msg': message})+'\n')
+                fout.flush()
         except:
             pass
 
