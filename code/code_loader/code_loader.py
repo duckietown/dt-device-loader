@@ -227,6 +227,8 @@ class CodeLoader(DTProcess):
                 remove_file(stack)
             self._boot_log('loading', "Stack completed: {}".format(stack_name))
             self._tick(1)
+
+        # log
         self._boot_log('done', "All stacks up")
 
         # <= LOAD IMAGES
