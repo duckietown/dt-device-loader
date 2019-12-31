@@ -13,7 +13,7 @@ from dt_avahi_utils import disable_service
 
 # constants
 LOADER_DATA_DIR = "/data/loader"
-BOOT_LOG_FILE = "/data/boot-log.txt"
+BOOT_LOG_FILE = "/data/logs/boot.log"
 CPU_TEMPERATURE_FILE = "/sys/class/thermal/thermal_zone0/temp"
 RECHECK_PERIOD_ON_ERROR_SEC = 10
 RECHECK_PERIOD_SEC = 60
