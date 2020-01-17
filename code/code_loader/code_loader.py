@@ -79,7 +79,7 @@ class CodeLoader(DTProcess):
             self.register_shutdown_callback(self.rest_api.stop)
         # load
         recheck_period = RECHECK_PERIOD_SEC
-        while not self.is_shutdown:
+        while not self.is_shutdown():
             try:
                 self._load_configuration()
                 self._run()
@@ -282,7 +282,7 @@ class CodeLoader(DTProcess):
         docker_load_process = Popen(['docker', 'load'], stdin=PIPE, stdout=PIPE)
         with open(archive_file, 'rb') as fin:
             data = fin.read(buffer)
-            while data != b"" and not self.is_shutdown:
+            while data != b"" and not self.is_shutdown():
                 # send data to docker load
                 docker_load_process.stdin.write(data)
                 # compute progress
