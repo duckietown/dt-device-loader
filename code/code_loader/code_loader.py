@@ -44,7 +44,7 @@ Current Status:
 class CodeLoader(DTProcess):
 
     def __init__(self):
-        DTProcess.__init__(self)
+        DTProcess.__init__(self, name='device-loader')
         self.images_to_load_dir = os.path.join(LOADER_DATA_DIR, 'images_to_load')
         self.stacks_to_load_dir = os.path.join(LOADER_DATA_DIR, 'stacks_to_load')
         self.stacks_to_run_dir = os.path.join(LOADER_DATA_DIR, 'stacks_to_run')
@@ -79,13 +79,21 @@ class CodeLoader(DTProcess):
             self.register_shutdown_callback(self.rest_api.stop)
         # load
         recheck_period = RECHECK_PERIOD_SEC
-        while not self.is_shutdown:
+        while not self.is_shutdown():
             try:
+                self.logger.info('Loading configuration...')
                 self._load_configuration()
+                self.logger.info('Configuration succesfully loaded.')
+
+                self.logger.info('Loading code...')
                 self._run()
+                self.logger.info('Code successfully loaded.')
+
                 disable_service('dt.device-init')
+                recheck_period = RECHECK_PERIOD_SEC
             except:
-                e = '\n'.join(sys.exc_info())
+                e = '\n'.join(map(str, sys.exc_info()))
+                self.logger.error(e)
                 for lvl in range(self.max_level):
                     self._set_action(lvl, 'ERROR: %s' % e)
                     self.error = True
@@ -140,12 +148,12 @@ class CodeLoader(DTProcess):
             glob(os.path.join(self.stacks_to_run_dir, '*.yml'))
         # print current status
         print(STATUS_TEMPLATE.format(**{
-            'images_load_tar' : list_files(basenames(self.images_to_load_tar)),
-            'images_load_tar_gz' : list_files(basenames(self.images_to_load_tar_gz)),
-            'stacks_load' : list_files(basenames(self.stacks_to_load_yaml)),
-            'stacks_run' : list_files(basenames(self.stacks_to_run_yaml)),
-            'exclude_run' : self.exclude_run,
-            'do_delete' : self.do_delete
+            'images_load_tar': list_files(basenames(self.images_to_load_tar)),
+            'images_load_tar_gz': list_files(basenames(self.images_to_load_tar_gz)),
+            'stacks_load': list_files(basenames(self.stacks_to_load_yaml)),
+            'stacks_run': list_files(basenames(self.stacks_to_run_yaml)),
+            'exclude_run': self.exclude_run,
+            'do_delete': self.do_delete
         }))
 
     def _run(self):
@@ -174,8 +182,11 @@ class CodeLoader(DTProcess):
         self._set_total(1, len(self.images_to_load_tar))
         self._set_status(1, 'Loading uncrompressed images (.tar)')
         for archive in self.images_to_load_tar:
+            if self.is_shutdown():
+                return
+            # ---
             self._docker_load_archive(archive)
-            if self.do_delete:
+            if not self.is_shutdown() and self.do_delete:
                 remove_file(archive)
             self._tick(1)
             self._tick(0)
@@ -185,8 +196,11 @@ class CodeLoader(DTProcess):
         self._set_total(1, len(self.images_to_load_tar_gz))
         self._set_status(1, 'Loading crompressed images (.tar.gz)')
         for archive in self.images_to_load_tar_gz:
+            if self.is_shutdown():
+                return
+            # ---
             self._docker_load_archive(archive)
-            if self.do_delete:
+            if not self.is_shutdown() and self.do_delete:
                 remove_file(archive)
             self._tick(1)
             self._tick(0)
@@ -196,10 +210,16 @@ class CodeLoader(DTProcess):
         self._set_total(1, len(self.stacks_to_run_yaml))
         self._set_status(1, 'Loading stacks we run at boot')
         for stack in self.stacks_to_run_yaml:
+            if self.is_shutdown():
+                return
+            # ---
             stack_name = os.path.basename(stack).replace('.yaml', '').replace('.yml', '')
             self._set_total(2, 1+len(stacks_to_run[stack]))
             self._set_status(2, 'Loading stack: %s' % stack_name)
             for image in stacks_to_run[stack]:
+                if self.is_shutdown():
+                    return
+                # ---
                 if not self._docker_image_exists(image):
                     self._docker_pull_image(image)
                     self._boot_log('loading', "Image loaded: {}".format(image))
@@ -215,15 +235,21 @@ class CodeLoader(DTProcess):
         self._set_total(1, len(self.stacks_to_load_yaml))
         self._set_status(1, 'Loading other stacks')
         for stack in self.stacks_to_load_yaml:
+            if self.is_shutdown():
+                return
+            # ---
             stack_name = os.path.basename(stack).replace('.yaml', '').replace('.yml', '')
             self._set_total(2, len(stacks_to_load[stack]))
             self._set_status(2, 'Loading stack: %s' % stack_name)
             for image in stacks_to_load[stack]:
+                if self.is_shutdown():
+                    return
+                # ---
                 self._docker_pull_image(image)
                 self._tick(2)
                 self._tick(0)
                 self._boot_log('loading', "Image loaded: {}".format(image))
-            if self.do_delete:
+            if not self.is_shutdown() and self.do_delete:
                 remove_file(stack)
             self._boot_log('loading', "Stack completed: {}".format(stack_name))
             self._tick(1)
@@ -239,6 +265,7 @@ class CodeLoader(DTProcess):
             with open(BOOT_LOG_FILE, "at") as fout:
                 fout.write(json.dumps({'phase': phase, 'msg': message})+'\n')
                 fout.flush()
+            self.logger.debug('BOOT-LOG: Phase[{}]; Msg[{}]'.format(phase, message))
         except:
             pass
 
@@ -261,6 +288,7 @@ class CodeLoader(DTProcess):
             self.action[lvl] = None
             self.tick[lvl] = 0
         self.action[action_lvl] = action
+        self.logger.debug('>{} {}'.format('>' * action_lvl, action))
 
     def _get_progress(self):
         progress = [0] * self.max_level
@@ -282,7 +310,7 @@ class CodeLoader(DTProcess):
         docker_load_process = Popen(['docker', 'load'], stdin=PIPE, stdout=PIPE)
         with open(archive_file, 'rb') as fin:
             data = fin.read(buffer)
-            while data != b"" and not self.is_shutdown:
+            while data != b"" and not self.is_shutdown():
                 # send data to docker load
                 docker_load_process.stdin.write(data)
                 # compute progress
@@ -334,7 +362,7 @@ class CodeLoader(DTProcess):
 
     def _images_in_stack(self, stack_file):
         images = []
-        yaml_content = yaml.load(open(stack_file).read())
+        yaml_content = yaml.load(open(stack_file).read(), Loader=yaml.FullLoader)
         for service_config in yaml_content['services'].values():
             images.append(service_config['image'])
         return list(set(images))
@@ -343,6 +371,7 @@ class CodeLoader(DTProcess):
 def basenames(lst):
     return [os.path.basename(fp) for fp in lst]
 
+
 def percentage(partial, total, rtype=int):
     # avoid division by zero
     if total == 0:
@@ -350,11 +379,13 @@ def percentage(partial, total, rtype=int):
     partial = min(partial, total)
     return rtype((partial / total) * 100.0)
 
+
 def list_files(lst, bullet='-', indent=1):
     if lst:
         pre = '\t' * indent + bullet + ' '
         return pre + ('\n'+pre).join(lst)
     return '\t' * indent + '(none)'
+
 
 def cpu_temperature():
     temp = 0
@@ -364,6 +395,7 @@ def cpu_temperature():
     except:
         pass
     return temp
+
 
 def remove_file(filepath):
     print('Now removing: '+filepath)
